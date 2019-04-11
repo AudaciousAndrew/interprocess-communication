@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-std=c99 -Wall -pedantic 
 
-all: clean
+all: 
 	$(CC) $(CFLAGS) main.c -o main
 
 
