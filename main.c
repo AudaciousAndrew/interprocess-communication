@@ -14,6 +14,7 @@
 #define STOUT 1
 
 int proc_number;
+int pipes[PROC_MAX+1][PROC_MAX+1][FD_MAX];
 
 /** Gets ammount of processes from command line
 */
@@ -75,13 +76,48 @@ void close_fds(local_id id, FILE *pipes_log, int pipes[ARR_SIZE][ARR_SIZE][FD_MA
 	fprintf(pipes_log, "PID:%d closed all file descriptors.\n", id);
 }
 
+Message init_msg(MessageType type, char *payload, size_t payload_len) {
+	Message msg;
+	msg.s_header.s_magic = MESSAGE_MAGIC;
+    msg.s_header.s_payload_len = payload_len;
+    msg.s_header.s_type = type;
+    msg.s_header.s_local_time  = 0;
+    return msg;
+}
+
+int child(local_id proc_id, FILE *pipes_log, FILE *events_log){
+	char payload[MAX_PAYLOAD_LEN];
+	size_t len;
+
+	close_fds(proc_id, pipes_log, pipes);
+
+	/*Process starts*/
+	fprintf(events_log, log_started_fmt, proc_id,getpid(),getppid());
+	len = fprintf(stdout, log_started_fmt, proc_id,getpid(),getppid());
+    
+    Message msg = init_msg(STARTED, payload, len);
+    //send_multicast(pipes[proc_id], msg);
+
+	return 0;
+
+}
+
+int parent(local_id proc_id, FILE *pipes_log, FILE *events_log){
+	close_fds(proc_id, pipes_log, pipes);
+
+	/*Process starts*/
+	fprintf(events_log, log_started_fmt, proc_id,getpid(),getppid());
+	fprintf(stdout, log_started_fmt, proc_id,getpid(),getppid());
+	return 0;
+
+}
+
 int main(int argc, char **argv) {
 
 	FILE *pipes_log = NULL;
 	FILE *events_log = NULL;
-	int pipes[PROC_MAX+1][PROC_MAX+1][FD_MAX];
 
-	if(!get_args(argc, argv)) {
+	if(get_args(argc, argv) !=0) {
 		perror("can't read arguments");
 		return -1;
 	}
@@ -99,6 +135,13 @@ int main(int argc, char **argv) {
 
 	if ( initialize_pipes(pipes, pipes_log) < 0) return -1;
 	
+	for(local_id i = 1; i <= proc_number; i++){
+		if(fork() == 0){
+			int exit_code = child(i, pipes_log, events_log);
+			exit(exit_code);
+		}
+	}
+	parent(PARENT_ID, pipes_log, events_log);
 	close_fds(PARENT_ID, pipes_log, pipes);
 	fclose(pipes_log);
 	fclose(events_log);
