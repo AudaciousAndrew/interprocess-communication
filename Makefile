@@ -7,3 +7,4 @@ all:
 
 clean:
 	rm *.log
+	rm main
