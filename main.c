@@ -81,29 +81,33 @@ void close_fds(local_id id, FILE *pipes_log, int pipes[ARR_SIZE][ARR_SIZE][FD_MA
 	fprintf(pipes_log, "PID:%d closed all file descriptors.\n", id);
 }
 
-Message init_msg(MessageType type, char *payload, size_t payload_len) {
+Message init_msg(MessageType type, size_t payload_len) {
 	Message msg;
 	msg.s_header.s_magic = MESSAGE_MAGIC;
     msg.s_header.s_payload_len = payload_len;
     msg.s_header.s_type = type;
-    msg.s_header.s_local_time  = 0;
+    msg.s_header.s_local_time  = get_physical_time();
     return msg;
 }
 
 
 int proc(local_id proc_id, FILE *pipes_log, FILE *events_log){
-	char payload[MAX_PAYLOAD_LEN];
+	//char payload[MAX_PAYLOAD_LEN];
 	size_t len;
-	close_fds(proc_id, pipes_log, pipes);
-
 	process p;
 	p.id = proc_id;
+	BalanceHistory history = {
+		.s_id = proc_id,
+		.s_history_len = 0,
+		.s_history = {{ 0 }}
+	};
+	close_fds(proc_id, pipes_log, pipes);
 
 	/*Process starts*/
-	fprintf(events_log, log_started_fmt, proc_id,getpid(),getppid());
-	len = fprintf(stdout, log_started_fmt, proc_id,getpid(),getppid());
+	fprintf(events_log,log_started_fmt,get_physical_time(),proc_id,getpid(),getppid(),history.s_history[0].s_balance);
+	len = fprintf(stdout, log_started_fmt,get_physical_time(),proc_id,getpid(),getppid(),history.s_history[0].s_balance);
     
-    Message msg = init_msg(STARTED, payload, len);
+    Message msg = init_msg(STARTED,len);
 
    	send_multicast((void*)&p, &msg);
 	for (int i = 1; i <= proc_number; i++) {
@@ -111,14 +115,15 @@ int proc(local_id proc_id, FILE *pipes_log, FILE *events_log){
            while(receive((void*)&p, i, &msg) != 0);
     }
 
-    fprintf(events_log, log_received_all_started_fmt, proc_id);
-	fprintf(stdout, log_received_all_started_fmt, proc_id);
+    fprintf(events_log, log_received_all_started_fmt,get_physical_time(),proc_id);
+	fprintf(stdout, log_received_all_started_fmt,get_physical_time(),proc_id);
 
 	/*Process is done*/
-	fprintf(events_log, log_done_fmt, proc_id);
-	len = fprintf(stdout, log_done_fmt, proc_id);
+	balance_t b = history.s_history[history.s_history_len-1].s_balance;
+	fprintf(events_log, log_done_fmt,get_physical_time(),proc_id,b);
+	len = fprintf(stdout, log_done_fmt,get_physical_time(),proc_id,b);
     
-    msg = init_msg(DONE, payload, len);
+    msg = init_msg(DONE,len);
 
    	send_multicast((void*)&p, &msg);
 	for (int i = 1; i <= proc_number; i++) {
@@ -126,8 +131,8 @@ int proc(local_id proc_id, FILE *pipes_log, FILE *events_log){
            while(receive((void*)&p, i, &msg) != 0);
     }
 
-    fprintf(events_log, log_received_all_done_fmt, proc_id);
-	fprintf(stdout, log_received_all_done_fmt, proc_id);
+    fprintf(events_log, log_received_all_done_fmt,get_physical_time(),proc_id);
+	fprintf(stdout, log_received_all_done_fmt,get_physical_time(),proc_id);
 	return 0;
 
 }

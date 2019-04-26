@@ -10,3 +10,5 @@
 int proc_number;
 int pipes[PROC_MAX+1][PROC_MAX+1][FD_MAX];
 balance_t balances[PROC_MAX];
+
+Message init_msg(MessageType type, size_t payload_len);

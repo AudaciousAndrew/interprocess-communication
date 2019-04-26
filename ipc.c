@@ -15,9 +15,8 @@ int send(void * self, local_id dst, const Message * msg){
 
 
 int send_multicast(void * self, const Message * msg) {
-	process *p   = (process*)self;
 	for (local_id i = 0; i <= proc_number; i++) {
-        send((void*)p, i, msg);
+        send(self, i, msg);
     }
     return 0;
 }
@@ -33,4 +32,12 @@ int receive(void *self, local_id from, Message *msg) {
         return -1;
     }
     return read_result > 0 ? 0 : -1;
+}
+
+int receive_any(void *self , Message *msg){
+    for(int i = 0 ; i < proc_number ; i++){
+        if(receive(self, i, msg) == 0)
+            return 0;
+    }
+    return -1;
 }
