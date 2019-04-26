@@ -2,9 +2,8 @@ CC=clang
 CFLAGS=-g -std=c99 -Wall -pedantic 
 
 all: 
-	$(CC) $(CFLAGS) main.c -o main
-
+	$(CC) $(CFLAGS) main.c ipc.c -o main
 
 clean:
-	rm *.log
 	rm main
+	rm *.log

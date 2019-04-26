@@ -4,3 +4,4 @@
 typedef struct {
     local_id id;
 } process;
+

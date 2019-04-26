@@ -3,28 +3,30 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include "common.h"
-#include "pa1.h"
-#include "ipc.h"
-#include "proc.h"
 #include <sys/wait.h>
 
-#define PROC_MAX 10
-#define FD_MAX 2
-#define ARR_SIZE 11
-#define STDIN 0
-#define STOUT 1
+#include "common.h"
+#include "pa2345.h"
+#include "ipc.h"
+#include "proc.h"
+#include "banking.h"
+#include "main.h" // constants and global variables
 
-int proc_number;
-int pipes[PROC_MAX+1][PROC_MAX+1][FD_MAX];
 
 
 /** Gets ammount of processes from command line
 */
 
 int get_args(int argc, char **argv) {
-	if (argc != 3 || (strcmp(argv[1], "-p") != 0)) 	return -1;
+	if (argc != atoi(argv[2])+ARGUMENTS_OFFSET || (strcmp(argv[1], "-p") != 0)) 	return -1;
 	proc_number = atoi(argv[2]);
+	if(proc_number < 0) return -1;
+	for (int i = 0; i < proc_number; i++){
+		balances[i] = atoi(argv[i+ARGUMENTS_OFFSET]);
+		if (balances[i] < 0){
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -64,13 +66,13 @@ void close_fds(local_id id, FILE *pipes_log, int pipes[ARR_SIZE][ARR_SIZE][FD_MA
 				}
 
 				if (n == id) {
-					close(pipes[m][n][STOUT]);
+					close(pipes[m][n][STDOUT]);
 					fprintf(pipes_log, "PID:%d closed write: %hhd -- %hhd\n", id , m , n);
 				}
 
 				if (m != id && n != id) {
 					close(pipes[m][n][STDIN]);
-					close(pipes[m][n][STOUT]);
+					close(pipes[m][n][STDOUT]);
 					fprintf(pipes_log, "PID:%d closed pipe: %hhd -- %hhd\n", id , m , n);
 				}
 			}
@@ -88,36 +90,6 @@ Message init_msg(MessageType type, char *payload, size_t payload_len) {
     return msg;
 }
 
-int send(void * self, local_id dst, const Message * msg){
-	process *p   = (process*)self;
-    local_id src  = p->id;
-    if (src == dst) return -1;
-    int fd   = pipes[src][dst][STOUT];
-    return write(fd, msg, sizeof(Message));
-
-}
-
-
-int send_multicast(void * self, const Message * msg) {
-	process *p   = (process*)self;
-	for (local_id i = 0; i <= proc_number; i++) {
-        send((void*)p, i, msg);
-    }
-    return 0;
-}
-
-int receive(void *self, local_id from, Message *msg) {
-    process *p   = (process*)self;
-    local_id dst  = p->id;
-    if (dst == from) return -1;
-    int fd   = pipes[from][dst][STDIN];
-    int read_result = read(fd, msg, sizeof(Message));
-    if (read_result < 0) {
-        perror("read");
-        return -1;
-    }
-    return read_result > 0 ? 0 : -1;
-}
 
 int proc(local_id proc_id, FILE *pipes_log, FILE *events_log){
 	char payload[MAX_PAYLOAD_LEN];
@@ -146,6 +118,7 @@ int proc(local_id proc_id, FILE *pipes_log, FILE *events_log){
 	fprintf(events_log, log_done_fmt, proc_id);
 	len = fprintf(stdout, log_done_fmt, proc_id);
     
+    msg = init_msg(DONE, payload, len);
 
    	send_multicast((void*)&p, &msg);
 	for (int i = 1; i <= proc_number; i++) {
@@ -174,7 +147,7 @@ int main(int argc, char **argv) {
 		 perror("can't open/create pipes.log file (fopen)");
 		return -1;
 	}
-	events_log = fopen("events.log" , "w+");
+	events_log = fopen("events.log","w+");
 	if(events_log == NULL){
 		 perror("can't open/create events.log file (fopen)");
 		return -1;
